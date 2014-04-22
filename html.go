@@ -100,6 +100,7 @@ type Html struct {
 	closeTag string // how to end singleton tags: either " />\n" or ">\n"
 	title    string // document title
 	css      string // optional css file url (used with HTML_COMPLETE_PAGE)
+	tagClass map[string]string
 
 	// table of contents data
 	tocMarker    int
@@ -194,17 +195,39 @@ func (options *Html) GetFlags() int {
 	return options.flags
 }
 
+func (options *Html) openTag(out *bytes.Buffer, tag string, id string, after string) {
+	if options.tagClass[tag] == "" {
+		if id == "" {
+			fmt.Fprintf(out, "<%s>%s", tag, after)
+		} else {
+			fmt.Fprintf(out, "<%s id=\"%s\">%s", tag, id, after)
+		}
+	} else {
+		if id == "" {
+			fmt.Fprintf(out, "<%s class=\"%s\">%s", tag, options.tagClass[tag], after)
+		} else {
+			fmt.Fprintf(out, "<%s id=\"%s\" class=\"%s\">%s", tag, id, options.tagClass[tag], after)
+		}
+	}
+}
+
+func (options *Html) GetTagClass(tag string) string {
+	return options.tagClass[tag]
+}
+
+func (options *Html) SetTagClass(tag string, class string) {
+	options.tagClass[tag] = class
+}
+
 func (options *Html) Header(out *bytes.Buffer, text func() bool, level int, id string) {
 	marker := out.Len()
 	doubleSpace(out)
 
-	if id != "" {
-		out.WriteString(fmt.Sprintf("<h%d id=\"%s\">", level, id))
-	} else if options.flags&HTML_TOC != 0 {
+	if options.flags&HTML_TOC != 0 {
 		// headerCount is incremented in htmlTocHeader
-		out.WriteString(fmt.Sprintf("<h%d id=\"toc_%d\">", level, options.headerCount))
+		options.openTag(out, fmt.Sprintf("h%d", level), fmt.Sprintf("toc_%d", options.headerCount), "")
 	} else {
-		out.WriteString(fmt.Sprintf("<h%d>", level))
+		options.openTag(out, fmt.Sprintf("h%d", level), id, "")
 	}
 
 	tocMarker := out.Len()
@@ -328,16 +351,19 @@ func (options *Html) BlockQuote(out *bytes.Buffer, text []byte) {
 
 func (options *Html) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {
 	doubleSpace(out)
-	out.WriteString("<table>\n<thead>\n")
+	for _, tag := range []string{"div", "table", "thead"} {
+		options.openTag(out, tag, "", "\n")
+	}
 	out.Write(header)
-	out.WriteString("</thead>\n\n<tbody>\n")
+	out.WriteString("</thead>\n\n")
+	options.openTag(out, "tbody", "", "\n")
 	out.Write(body)
-	out.WriteString("</tbody>\n</table>\n")
+	out.WriteString("</tbody>\n</table>\n</div>\n")
 }
 
 func (options *Html) TableRow(out *bytes.Buffer, text []byte) {
 	doubleSpace(out)
-	out.WriteString("<tr>\n")
+	options.openTag(out, "tr", "", "\n")
 	out.Write(text)
 	out.WriteString("\n</tr>\n")
 }
@@ -352,7 +378,7 @@ func (options *Html) TableHeaderCell(out *bytes.Buffer, text []byte, align int) 
 	case TABLE_ALIGNMENT_CENTER:
 		out.WriteString("<th align=\"center\">")
 	default:
-		out.WriteString("<th>")
+		options.openTag(out, "th", "", "")
 	}
 
 	out.Write(text)
@@ -369,7 +395,7 @@ func (options *Html) TableCell(out *bytes.Buffer, text []byte, align int) {
 	case TABLE_ALIGNMENT_CENTER:
 		out.WriteString("<td align=\"center\">")
 	default:
-		out.WriteString("<td>")
+		options.openTag(out, "td", "", "")
 	}
 
 	out.Write(text)
