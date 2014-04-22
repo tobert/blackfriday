@@ -69,16 +69,15 @@ var (
 		"sub",
 		"strong",
 		"strike",
-		"ul",		
+		"ul",
 		"table",
 		"tr",
 		"td",
 		"th",
 		"thead",
 		"tbody",
-		
 	}
-	
+
 	alignments = []string{
 		"left",
 		"right",
